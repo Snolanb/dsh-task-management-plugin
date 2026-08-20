@@ -44,7 +44,7 @@ The task plugin now has an initial dispatcher implementation, but it does not ye
 - The task service exposes worker specifications, resolution, preflight, and dispatcher construction; loopback routes expose worker listing and preflight diagnostics.
 - Tests cover normalization, routing, workspace/model failures, claim/start/complete/fail, launch failure, and prompt construction.
 
-Still pending are the dedicated Ornith headless profile, provider adapter packaging, autonomous polling, durable run records, and the session-backed MiniMax/Luna launcher.
+Still pending are installing the Ornith profile into the active DSH_HOME, autonomous polling, durable run records, and the session-backed MiniMax/Luna launcher.
 
 ## Two independent routing dimensions
 
@@ -233,7 +233,9 @@ Create ornith-filemount-worker with:
 - agent-default-model set to ollama / ornith-1.5:9b
 - explicit workspace-write policy appropriate for the worker
 
-A launch smoke test must make one bounded request before the dispatcher claims real tasks. The earlier experiment demonstrated why: the profile could start a server, but its isolated composition had no active Ollama adapter and the first prompt failed with model-unavailable.
+The repository template is profiles/ornith-filemount-worker. Its Ollama route uses the OpenAI-compatible protocol at the local /v1 endpoint and reads OLLAMA_API_KEY from the environment; the local Ollama compatibility key can be the non-secret value ollama. A bounded READY smoke test now succeeds through dsh-headless with file-mount and small-model-guard loaded.
+
+The earlier experiment demonstrated why this preflight matters: the isolated profile initially had no active Ollama adapter, then failed on missing protocol and credential configuration before these profile fixes.
 
 ### MiniMax standard worker
 
@@ -354,7 +356,7 @@ Implemented: add validated worker-spec configuration, provider/model preflight, 
 
 ### Phase 2 — Ornith headless worker
 
-Create the dedicated headless profile, fix or register the Ollama adapter, and run one bounded end-to-end task through the implemented process launcher.
+The dedicated headless profile template and Ollama adapter configuration are implemented and pass a bounded no-op smoke test. Remaining work is installing the profile into the active DSH_HOME and running a real task through the dispatcher process launcher.
 
 ### Phase 3 — lifecycle dispatcher
 
