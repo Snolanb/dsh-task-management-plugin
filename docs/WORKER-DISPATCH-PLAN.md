@@ -2,7 +2,7 @@
 
 ## Status
 
-This document records the design and implementation status for dispatching task-board work to workers with different DSH compositions, plugins, models, reasoning budgets, and workspace policies. The first registry, preflight, and lease-aware process-dispatch slice is implemented on feature/worker-dispatch; the remaining phases are still planned.
+This document records the design and implementation status for dispatching task-board work to workers with different DSH compositions, plugins, models, reasoning budgets, and workspace policies. The validated registry, preflight, lease-aware process dispatcher, and session-backed model launcher are implemented on feature/worker-dispatch; autonomous scheduling and durable run persistence remain planned.
 
 ## Goals
 
@@ -33,7 +33,7 @@ The task-orchestrator already provides the important control-plane primitives:
 - Dependencies and parent/child relationships are already persisted and checked.
 - Audit events are append-only and survive restarts.
 
-The task plugin now has an initial dispatcher implementation, but it does not yet provide an autonomous polling scheduler, durable dispatch-run table, session-backed launcher, or multi-host coordination. The implementation builds on the existing lifecycle instead of replacing it.
+The task plugin now has a dispatcher implementation for headless processes and host sessions, but it does not yet provide an autonomous polling scheduler, durable dispatch-run table, or multi-host coordination. The implementation builds on the existing lifecycle instead of replacing it.
 
 ## Implemented slice on feature/worker-dispatch
 
@@ -41,10 +41,12 @@ The task plugin now has an initial dispatcher implementation, but it does not ye
 - preflightWorker checks task workspaces, profile or preset availability, launchers, provider/model catalogs, and reasoning efforts without claiming a task.
 - WorkerDispatcher performs preflight, atomic claim, launch, start, lease renewal, timeout handling, completion, failure, and launch-failure release.
 - createHeadlessProcessLauncher uses structured, non-shell DSH arguments and bounded stdout/stderr capture.
+- createSessionLauncher creates a blank host session, selects the validated provider/model/reasoning tuple before prompting, and polls session history for terminal turn events.
+- createWorkerLauncher selects the headless or session path from the worker mode; session RPC failures and terminal model errors are surfaced as worker failures.
 - The task service exposes worker specifications, resolution, preflight, and dispatcher construction; loopback routes expose worker listing and preflight diagnostics.
-- Tests cover normalization, routing, workspace/model failures, claim/start/complete/fail, launch failure, and prompt construction.
+- Tests cover normalization, routing, workspace/model failures, claim/start/complete/fail, launch failure, prompt construction, session selection, completion, and terminal errors.
 
-Still pending are installing the Ornith profile into the active DSH_HOME, autonomous polling, durable run records, and the session-backed MiniMax/Luna launcher.
+Still pending are installing the Ornith profile into the active DSH_HOME, autonomous polling, durable run records, and live provider smoke tests for the session tiers.
 
 ## Two independent routing dimensions
 
@@ -360,11 +362,11 @@ The dedicated headless profile template and Ollama adapter configuration are imp
 
 ### Phase 3 — lifecycle dispatcher
 
-Partially implemented: add claim, start, lease, monitor, complete, fail, launch-failure release, timeout handling, and integration tests. Remaining work is durable run records, autonomous polling, and production cleanup supervision.
+Implemented: claim, start, lease, monitor, complete, fail, launch-failure release, timeout handling, and integration tests. Remaining work is durable run records, autonomous polling, and production cleanup supervision.
 
 ### Phase 4 — session-backed model tiers
 
-Add standard, MiniMax, and Luna worker specs through session.create plus session.selectModel. Validate blank-session composition and model-selection behavior.
+Implemented generic session-backed launching through session.create, session.selectModel, session.prompt, and history polling. MiniMax and Luna selections are passed from validated worker specs; tests cover model selection, completion, and terminal errors. Live provider smoke tests remain deployment-specific.
 
 ### Phase 5 — worker pools and operations
 
