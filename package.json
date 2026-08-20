@@ -10,7 +10,8 @@
     "./routes": "./lib/routes.js",
     "./tools": "./lib/tools.js",
     "./client": "./lib/client.js",
-    "./client-api": "./lib/client-api.js"
+    "./client-api": "./lib/client-api.js",
+    "./package.json": "./package.json"
   },
   "files": ["lib", "src", "README.md", "PLAN.md", "cordis.patch.yml"],
   "engines": {"node": ">=22.5.0"},
