@@ -8,14 +8,19 @@
     ".": "./lib/index.js",
     "./store": "./lib/store.js",
     "./routes": "./lib/routes.js",
-    "./tools": "./lib/tools.js"
+    "./tools": "./lib/tools.js",
+    "./client": "./lib/client.js",
+    "./client-api": "./lib/client-api.js"
   },
   "files": ["lib", "src", "README.md", "PLAN.md", "cordis.patch.yml"],
   "engines": {"node": ">=22.5.0"},
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.7"
   },
-  "dsh": {"bundle": {"patch": "./cordis.patch.yml"}},
+  "dsh": {
+    "bundle": {"patch": "./cordis.patch.yml"},
+    "client": {"platform": "web"}
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test"

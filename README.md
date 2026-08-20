@@ -105,6 +105,14 @@ Example calls:
 
 The existing kanban frontend can replace its local task ledger by using these routes: load tasks, render each returned status, use PATCH for manager moves, use action routes for worker leases, and use dependencies, children, and events for detail panels. No UI rebuild is included here.
 
+## Standalone browser board
+
+This package also ships its own independent browser face. It does not modify or import the managed kanban plugin. When the package is loaded in a DSH web profile, it adds a small Tasks launcher button and a floating board panel.
+
+The board displays all eleven lifecycle columns, refreshes from the orchestration API, supports task creation, status moves, worker id and profile filtering, claim/start/release/renew actions, structured completion into in_review, review changes, dependency inspection and event history. It is intentionally plain DOM/CSS with no React or UI-package dependency, so it remains isolated from other board implementations.
+
+The browser client is exported as ./client and the reusable request wrapper as ./client-api. Its only server dependency is the loopback /api/task-orchestrator HTTP prefix. If the API is unavailable, the board reports the error without affecting the DSH shell.
+
 ## Example manager workflow
 
 1. Create a parent task linked to github_repo and github_issue.
