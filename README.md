@@ -25,7 +25,7 @@ For a local DSH profile, link the package using the normal DSH plugin command:
 
     dsh plugin --profile web add link:/Users/you/Project/dsh-task-management-plugin
 
-The package manifest includes cordis.patch.yml, which adds the host plugin and standalone browser board to a profile bundle. The plugin requires Node >= 22.5 because it uses node:sqlite. The DSH profile needs the standard tools service; webServer is optional and only controls whether HTTP routes are mounted. Restart the managed DSH Web process after changing profile dependencies so the new client bundle enters the boot manifest.
+The package manifest includes cordis.patch.yml, which adds the host plugin and standalone browser board to a profile bundle. The plugin requires Node >= 22.5 because it uses node:sqlite. The DSH profile needs the standard tools and webServer services. Restart the managed DSH Web process after changing profile dependencies so the new client bundle enters the boot manifest.
 
 ## Configuration
 
@@ -103,7 +103,7 @@ Example calls:
     curl -X POST 'http://127.0.0.1:3080/api/task-orchestrator/tasks' -H 'content-type: application/json' -d '{"title":"Implement parser","status":"ready","worker_profile":"ornith","acceptance_criteria":["tests pass"]}'
     curl -X POST 'http://127.0.0.1:3080/api/task-orchestrator/tasks/TASK_ID/claim' -H 'content-type: application/json' -d '{"worker":"ornith-1","lease_seconds":1800}'
 
-The existing kanban frontend can replace its local task ledger by using these routes: load tasks, render each returned status, use PATCH for manager moves, use action routes for worker leases, and use dependencies, children, and events for detail panels. No UI rebuild is included here.
+The managed kanban frontend could replace its local task ledger by using these routes: load tasks, render each returned status, use PATCH for manager moves, use action routes for worker leases, and use dependencies, children, and events for detail panels. This package instead ships an isolated standalone board and does not modify that managed frontend.
 
 ## Standalone browser board
 
@@ -111,7 +111,7 @@ This package also ships its own independent browser face. It does not modify or 
 
 The board displays all eleven lifecycle columns, refreshes from the orchestration API, supports task creation, status moves, worker id and profile filtering, claim/start/release/renew actions, structured completion into in_review, review changes, dependency inspection and event history. It is intentionally plain DOM/CSS with no React or UI-package dependency, so it remains isolated from other board implementations.
 
-The browser client is exported as ./client and the reusable request wrapper as ./client-api. Its only server dependency is the loopback /api/task-orchestrator HTTP prefix. If the API is unavailable, the board reports the error without affecting the DSH shell.
+The browser client is exported as ./client and the reusable request wrapper as ./client-api. The build uses tsdown to bundle the browser source and emits the DSH `window.__ModuleLoader__.load` factory format under the package identity dsh-task-orchestrator; local dependencies are bundled, so the artifact has no unresolved browser ESM imports. Its only server dependency is the loopback /api/task-orchestrator HTTP prefix. If the API is unavailable, the board reports the error without affecting the DSH shell.
 
 ## Example manager workflow
 
