@@ -2,7 +2,7 @@
 
 ## Status
 
-This document records the design for dispatching task-board work to workers with different DSH compositions, plugins, models, reasoning budgets, and workspace policies. It is a design plan only; it does not claim that the dispatcher has been implemented.
+This document records the design and implementation status for dispatching task-board work to workers with different DSH compositions, plugins, models, reasoning budgets, and workspace policies. The first registry, preflight, and lease-aware process-dispatch slice is implemented on feature/worker-dispatch; the remaining phases are still planned.
 
 ## Goals
 
@@ -33,7 +33,18 @@ The task-orchestrator already provides the important control-plane primitives:
 - Dependencies and parent/child relationships are already persisted and checked.
 - Audit events are append-only and survive restarts.
 
-The current limitation is explicit: the task plugin does not spawn workers. Its README describes a dispatcher seam but leaves worker spawning, scheduling, and multi-host coordination unimplemented. The new design should build on the existing lifecycle instead of replacing it.
+The task plugin now has an initial dispatcher implementation, but it does not yet provide an autonomous polling scheduler, durable dispatch-run table, session-backed launcher, or multi-host coordination. The implementation builds on the existing lifecycle instead of replacing it.
+
+## Implemented slice on feature/worker-dispatch
+
+- WorkerSpecRegistry validates named profiles, modes, plugin labels, model tuples, limits, and workspace policies.
+- preflightWorker checks task workspaces, profile or preset availability, launchers, provider/model catalogs, and reasoning efforts without claiming a task.
+- WorkerDispatcher performs preflight, atomic claim, launch, start, lease renewal, timeout handling, completion, failure, and launch-failure release.
+- createHeadlessProcessLauncher uses structured, non-shell DSH arguments and bounded stdout/stderr capture.
+- The task service exposes worker specifications, resolution, preflight, and dispatcher construction; loopback routes expose worker listing and preflight diagnostics.
+- Tests cover normalization, routing, workspace/model failures, claim/start/complete/fail, launch failure, and prompt construction.
+
+Still pending are the dedicated Ornith headless profile, provider adapter packaging, autonomous polling, durable run records, and the session-backed MiniMax/Luna launcher.
 
 ## Two independent routing dimensions
 
@@ -335,19 +346,19 @@ The task event stream remains the user-facing audit trail. A separate run table 
 
 ### Phase 0 — documented baseline
 
-This document and the existing task lifecycle are the baseline. No worker spawning is enabled yet.
+The task lifecycle, worker registry, preflight API, and initial process dispatcher are implemented and tested. Autonomous scheduling and production worker profiles are not enabled yet.
 
 ### Phase 1 — registry and preflight
 
-Add validated worker-spec configuration, provider/model preflight, workspace policy, and dry-run diagnostics. Do not launch processes yet.
+Implemented: add validated worker-spec configuration, provider/model preflight, workspace policy, and dry-run diagnostics. Remaining work is configuration loading and operator-facing diagnostics.
 
 ### Phase 2 — Ornith headless worker
 
-Create the dedicated headless profile, fix or register the Ollama adapter, add a process launcher, and run one bounded end-to-end task.
+Create the dedicated headless profile, fix or register the Ollama adapter, and run one bounded end-to-end task through the implemented process launcher.
 
 ### Phase 3 — lifecycle dispatcher
 
-Add claim, start, lease, monitor, complete, and fail orchestration, run records, cleanup, retry classification, and integration tests.
+Partially implemented: add claim, start, lease, monitor, complete, fail, launch-failure release, timeout handling, and integration tests. Remaining work is durable run records, autonomous polling, and production cleanup supervision.
 
 ### Phase 4 — session-backed model tiers
 

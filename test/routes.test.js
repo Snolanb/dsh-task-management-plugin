@@ -6,8 +6,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { TaskStore } from '../src/store.js'
 import { handleRequest } from '../src/routes.js'
+import { WorkerSpecRegistry } from '../src/worker-specs.js'
 
-function request(store, method, url, payload, remoteAddress = '127.0.0.1') {
+function request(store, method, url, payload, remoteAddress = '127.0.0.1', dependencies = {}) {
   const req = Readable.from(payload === undefined ? [] : [JSON.stringify(payload)])
   req.method = method
   req.url = url
@@ -17,7 +18,7 @@ function request(store, method, url, payload, remoteAddress = '127.0.0.1') {
     writeHead(status, headers) { this.status = status; this.headers = headers },
     end(value = '') { body += value },
   }
-  return handleRequest(store, req, res).then(() => ({ status: res.status, headers: res.headers, body: JSON.parse(body) }))
+  return handleRequest(store, req, res, dependencies).then(() => ({ status: res.status, headers: res.headers, body: JSON.parse(body) }))
 }
 
 test('serves loopback task CRUD, lifecycle, and dispatcher routes', async t => {
@@ -32,6 +33,11 @@ test('serves loopback task CRUD, lifecycle, and dispatcher routes', async t => {
 
   const listed = await request(store, 'GET', '/api/task-orchestrator/dispatcher/ready')
   assert.deepEqual(listed.body.tasks.map(task => task.id), ['http-task'])
+  const registry = new WorkerSpecRegistry({ ornith: { mode: 'headless-profile', profile: 'ornith-filemount-worker', provider: 'ollama', model: 'ornith-1.5:9b' } })
+  const workers = await request(store, 'GET', '/api/task-orchestrator/dispatcher/workers', undefined, '127.0.0.1', { registry })
+  assert.equal(workers.body.workers[0].name, 'ornith')
+  const preflight = await request(store, 'POST', '/api/task-orchestrator/dispatcher/preflight', { worker_profile: 'ornith', workspace: '/workspace' }, '127.0.0.1', { preflight: async input => ({ ok: input.worker_profile === 'ornith', checks: [] }) })
+  assert.equal(preflight.body.preflight.ok, true)
   const claimed = await request(store, 'POST', '/api/task-orchestrator/tasks/http-task/claim', { worker: 'http-worker' })
   assert.equal(claimed.body.claimed, true)
   await request(store, 'POST', '/api/task-orchestrator/tasks/http-task/start', { worker: 'http-worker' })

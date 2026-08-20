@@ -11,7 +11,7 @@ if (!existsSync('.client-build/client.cjs')) throw new Error('tsdown did not pro
 cpSync('.client-build/client.cjs', 'lib/client.js')
 rmSync('.client-build', { recursive: true, force: true })
 
-for (const file of ['lib/index.js', 'lib/store.js', 'lib/routes.js', 'lib/tools.js', 'lib/client-api.js', 'lib/client.js']) {
+for (const file of ['lib/index.js', 'lib/store.js', 'lib/routes.js', 'lib/tools.js', 'lib/client-api.js', 'lib/dispatcher.js', 'lib/worker-specs.js', 'lib/worker-preflight.js', 'lib/client.js']) {
   execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' })
 }
 const client = readFileSync('lib/client.js', 'utf8')
