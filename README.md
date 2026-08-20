@@ -25,7 +25,7 @@ For a local DSH profile, link the package using the normal DSH plugin command:
 
     dsh plugin --profile web add link:/Users/you/Project/dsh-task-management-plugin
 
-The package manifest includes cordis.patch.yml, which adds the host plugin to a profile bundle. The plugin requires Node >= 22.5 because it uses node:sqlite. The DSH profile needs the standard tools service; webServer is optional and only controls whether HTTP routes are mounted.
+The package manifest includes cordis.patch.yml, which adds the host plugin and standalone browser board to a profile bundle. The plugin requires Node >= 22.5 because it uses node:sqlite. The DSH profile needs the standard tools service; webServer is optional and only controls whether HTTP routes are mounted. Restart the managed DSH Web process after changing profile dependencies so the new client bundle enters the boot manifest.
 
 ## Configuration
 
