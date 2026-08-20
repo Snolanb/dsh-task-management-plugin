@@ -11,6 +11,9 @@
     "./tools": "./lib/tools.js",
     "./client": "./lib/client.js",
     "./client-api": "./lib/client-api.js",
+    "./worker-specs": "./lib/worker-specs.js",
+    "./worker-preflight": "./lib/worker-preflight.js",
+    "./dispatcher": "./lib/dispatcher.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -18,6 +21,8 @@
     "src",
     "README.md",
     "PLAN.md",
+    "docs",
+    "profiles",
     "cordis.patch.yml"
   ],
   "engines": {

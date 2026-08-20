@@ -2,7 +2,7 @@
 
 ## Status
 
-This document records the design for dispatching task-board work to workers with different DSH compositions, plugins, models, reasoning budgets, and workspace policies. It is a design plan only; it does not claim that the dispatcher has been implemented.
+This document records the design and implementation status for dispatching task-board work to workers with different DSH compositions, plugins, models, reasoning budgets, and workspace policies. The validated registry, preflight, lease-aware process dispatcher, and session-backed model launcher are implemented on feature/worker-dispatch; autonomous scheduling and durable run persistence remain planned.
 
 ## Goals
 
@@ -33,7 +33,20 @@ The task-orchestrator already provides the important control-plane primitives:
 - Dependencies and parent/child relationships are already persisted and checked.
 - Audit events are append-only and survive restarts.
 
-The current limitation is explicit: the task plugin does not spawn workers. Its README describes a dispatcher seam but leaves worker spawning, scheduling, and multi-host coordination unimplemented. The new design should build on the existing lifecycle instead of replacing it.
+The task plugin now has a dispatcher implementation for headless processes and host sessions, but it does not yet provide an autonomous polling scheduler, durable dispatch-run table, or multi-host coordination. The implementation builds on the existing lifecycle instead of replacing it.
+
+## Implemented slice on feature/worker-dispatch
+
+- WorkerSpecRegistry validates named profiles, modes, plugin labels, model tuples, limits, and workspace policies.
+- preflightWorker checks task workspaces, profile or preset availability, launchers, provider/model catalogs, and reasoning efforts without claiming a task.
+- WorkerDispatcher performs preflight, atomic claim, launch, start, lease renewal, timeout handling, completion, failure, and launch-failure release.
+- createHeadlessProcessLauncher uses structured, non-shell DSH arguments and bounded stdout/stderr capture.
+- createSessionLauncher creates a blank host session, selects the validated provider/model/reasoning tuple before prompting, and polls session history for terminal turn events.
+- createWorkerLauncher selects the headless or session path from the worker mode; session RPC failures and terminal model errors are surfaced as worker failures.
+- The task service exposes worker specifications, resolution, preflight, and dispatcher construction; loopback routes expose worker listing and preflight diagnostics.
+- Tests cover normalization, routing, workspace/model failures, claim/start/complete/fail, launch failure, prompt construction, session selection, completion, and terminal errors.
+
+Still pending are installing the Ornith profile into the active DSH_HOME, autonomous polling, durable run records, and live provider smoke tests for the session tiers.
 
 ## Two independent routing dimensions
 
@@ -222,7 +235,9 @@ Create ornith-filemount-worker with:
 - agent-default-model set to ollama / ornith-1.5:9b
 - explicit workspace-write policy appropriate for the worker
 
-A launch smoke test must make one bounded request before the dispatcher claims real tasks. The earlier experiment demonstrated why: the profile could start a server, but its isolated composition had no active Ollama adapter and the first prompt failed with model-unavailable.
+The repository template is profiles/ornith-filemount-worker. Its Ollama route uses the OpenAI-compatible protocol at the local /v1 endpoint and reads OLLAMA_API_KEY from the environment; the local Ollama compatibility key can be the non-secret value ollama. A bounded READY smoke test now succeeds through dsh-headless with file-mount and small-model-guard loaded.
+
+The earlier experiment demonstrated why this preflight matters: the isolated profile initially had no active Ollama adapter, then failed on missing protocol and credential configuration before these profile fixes.
 
 ### MiniMax standard worker
 
@@ -335,23 +350,23 @@ The task event stream remains the user-facing audit trail. A separate run table 
 
 ### Phase 0 — documented baseline
 
-This document and the existing task lifecycle are the baseline. No worker spawning is enabled yet.
+The task lifecycle, worker registry, preflight API, and initial process dispatcher are implemented and tested. Autonomous scheduling and production worker profiles are not enabled yet.
 
 ### Phase 1 — registry and preflight
 
-Add validated worker-spec configuration, provider/model preflight, workspace policy, and dry-run diagnostics. Do not launch processes yet.
+Implemented: add validated worker-spec configuration, provider/model preflight, workspace policy, and dry-run diagnostics. Remaining work is configuration loading and operator-facing diagnostics.
 
 ### Phase 2 — Ornith headless worker
 
-Create the dedicated headless profile, fix or register the Ollama adapter, add a process launcher, and run one bounded end-to-end task.
+The dedicated headless profile template and Ollama adapter configuration are implemented and pass a bounded no-op smoke test. Remaining work is installing the profile into the active DSH_HOME and running a real task through the dispatcher process launcher.
 
 ### Phase 3 — lifecycle dispatcher
 
-Add claim, start, lease, monitor, complete, and fail orchestration, run records, cleanup, retry classification, and integration tests.
+Implemented: claim, start, lease, monitor, complete, fail, launch-failure release, timeout handling, and integration tests. Remaining work is durable run records, autonomous polling, and production cleanup supervision.
 
 ### Phase 4 — session-backed model tiers
 
-Add standard, MiniMax, and Luna worker specs through session.create plus session.selectModel. Validate blank-session composition and model-selection behavior.
+Implemented generic session-backed launching through session.create, session.selectModel, session.prompt, and history polling. MiniMax and Luna selections are passed from validated worker specs; tests cover model selection, completion, and terminal errors. Live provider smoke tests remain deployment-specific.
 
 ### Phase 5 — worker pools and operations
 
