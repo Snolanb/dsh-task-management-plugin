@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { TaskStore } from '../src/store.js'
-import { WorkerDispatcher, buildTaskPrompt } from '../src/dispatcher.js'
+import { WorkerDispatcher, buildTaskPrompt, createSessionLauncher, createSessionRpcClient } from '../src/dispatcher.js'
 import { WorkerSpecRegistry } from '../src/worker-specs.js'
 
 function fixture() {
@@ -108,4 +108,78 @@ test('builds a bounded task prompt from the persisted task record', () => {
   assert.match(prompt, /task\/one/)
   assert.match(prompt, /1\. first/)
   assert.match(prompt, /Do not modify unrelated files/)
+})
+
+
+test('session launcher selects the model before prompting and polls completion', async () => {
+  const calls = []
+  let historyCalls = 0
+  const launcher = createSessionLauncher({
+    pollIntervalMs: 0,
+    rpc: {
+      async call(method, payload) {
+        calls.push({ method, payload })
+        if (method === 'session.create') return { sessionId: 'session-1' }
+        if (method === 'session.history') {
+          historyCalls += 1
+          if (historyCalls === 1) return { events: [] }
+          return { events: [
+            { event: { seq: 1, type: 'turn/start', data: { turn: 1 } } },
+            { event: { seq: 2, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'session completed' }] } } } },
+            { event: { seq: 3, type: 'turn/end', data: { reason: { kind: 'completed' } } } },
+          ] }
+        }
+        return { accepted: true }
+      },
+    },
+  })
+  const handle = await launcher.launch({
+    task: { id: 'session-task', title: 'Session task', description: 'Do it.', workspace: '/repo', acceptance_criteria: [] },
+    spec: { name: 'minimax-standard', mode: 'session', agentPreset: 'standard', model: { provider: 'minimax-cn', model: 'MiniMax-M3', reasoningEffort: 'high' } },
+    runId: 'session-run-1',
+  })
+  const result = await handle.wait()
+  assert.equal(result.exitCode, 0)
+  assert.equal(result.stdout, 'session completed')
+  assert.deepEqual(calls.slice(0, 4).map(call => call.method), ['session.create', 'session.selectModel', 'session.history', 'session.prompt'])
+  assert.deepEqual(calls[1].payload, { sessionId: 'session-1', provider: 'minimax-cn', model: 'MiniMax-M3', reasoningEffort: 'high' })
+  assert.equal(calls[3].payload.sessionId, 'session-1')
+})
+
+test('session launcher classifies a terminal model error as failure', async () => {
+  let historyCalls = 0
+  const launcher = createSessionLauncher({
+    pollIntervalMs: 0,
+    rpc: { async call(method) {
+      if (method === 'session.create') return { sessionId: 'session-error' }
+      if (method === 'session.history') {
+        historyCalls += 1
+        return historyCalls === 1 ? { events: [] } : { events: [{ event: { seq: 1, type: 'turn/end', data: { reason: { kind: 'error', error: { message: 'provider failed' } } } } }] }
+      }
+      return { accepted: true }
+    } },
+  })
+  const handle = await launcher.launch({
+    task: { id: 'session-error-task', title: 'Error task', workspace: '/repo' },
+    spec: { name: 'luna-max', mode: 'session', agentPreset: 'standard', model: { provider: 'openai-codex', model: 'gpt-5.6-luna', reasoningEffort: 'max' } },
+    runId: 'session-error-run',
+  })
+  const result = await handle.wait()
+  assert.equal(result.exitCode, 1)
+  assert.match(result.stderr, /provider failed/)
+})
+
+test('session RPC client sends DSH envelopes and surfaces structured errors', async () => {
+  const requests = []
+  const rpc = createSessionRpcClient({
+    baseUrl: 'http://127.0.0.1:3080/api/',
+    idFactory: () => 'rpc-1',
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init })
+      return { ok: true, status: 200, async json() { return { result: { ok: true, value: { accepted: true } } } } }
+    },
+  })
+  assert.deepEqual(await rpc.call('session.prompt', { sessionId: 's1' }), { accepted: true })
+  assert.equal(requests[0].url, 'http://127.0.0.1:3080/api/session.prompt')
+  assert.equal(JSON.parse(requests[0].init.body).rpcId, 'task-dispatch-rpc-1')
 })
