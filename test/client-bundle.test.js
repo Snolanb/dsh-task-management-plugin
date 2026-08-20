@@ -10,6 +10,7 @@ class FakeNode {
     this.parentNode = null
     this.attributes = new Map()
     this.listeners = new Map()
+    this.className = ''
     this.classList = {
       values: new Set(),
       toggle: (name, force) => {
@@ -20,11 +21,20 @@ class FakeNode {
     }
   }
   append(...children) { for (const child of children) { this.children.push(child); child.parentNode = this } }
+  insertBefore(child, anchor) { if (anchor === null || anchor === undefined) this.append(child); else { const index = this.children.indexOf(anchor); if (index < 0) this.append(child); else { this.children.splice(index, 0, child); child.parentNode = this } } }
   removeChild(child) { const index = this.children.indexOf(child); if (index >= 0) this.children.splice(index, 1); child.parentNode = null; return child }
   remove() { this.parentNode?.removeChild(this) }
   setAttribute(name, value) { this.attributes.set(name, String(value)) }
   addEventListener(name, handler) { this.listeners.set(name, handler) }
+  closest() { return null }
+  matches(selector) { return selector.includes('data-dsh-task-orchestrator-entry') && this.attributes.has('data-dsh-task-orchestrator-entry') }
+  querySelector(selector) { return find(this, node => node !== this && (selector.includes('newSession') && node.tagName === 'BUTTON' && node.className.includes('newSession'))) ?? null }
+  contains(node) { return node === this || this.children.some(child => child.contains?.(node)) }
+  get parentElement() { return this.parentNode }
   get firstChild() { return this.children[0] }
+  get firstElementChild() { return this.children.find(child => child.tagName !== '#text') }
+  get nextElementSibling() { const siblings = this.parentNode?.children ?? []; const index = siblings.indexOf(this); return index >= 0 ? siblings[index + 1] : undefined }
+  get isConnected() { return this.parentNode !== null && (this.parentNode.isConnected || this.parentNode.tagName === '#document') }
   set textContent(value) { this.children = []; this.text = String(value) }
   get textContent() { return this.text ?? this.children.map(child => child.textContent ?? '').join('') }
 }
@@ -39,11 +49,30 @@ class FakeDocument extends FakeNode {
   constructor() { super('#document'); this.head = new FakeNode('head'); this.body = new FakeNode('body'); this.append(this.head, this.body) }
   createElement(tagName) { return new FakeNode(tagName) }
   createTextNode(text) { const node = new FakeNode('#text'); node.textContent = text; return node }
-  querySelector(selector) { return selector === '[data-dsh-task-orchestrator-board]' ? (find(this, node => node.attributes.has('data-dsh-task-orchestrator-board')) ?? null) : null }
+  querySelector(selector) {
+    if (selector.includes('data-pane="sidebar"') || selector.includes('sidebarCol')) return find(this, node => node.attributes.get('data-pane') === 'sidebar') ?? null
+    if (selector === '[data-dsh-task-orchestrator-board]') return find(this, node => node.attributes.has('data-dsh-task-orchestrator-board')) ?? null
+    if (selector === '[data-dsh-task-orchestrator-entry]') return find(this, node => node.attributes.has('data-dsh-task-orchestrator-entry')) ?? null
+    return null
+  }
 }
 
-test('bundled DSH client registers and mounts the standalone board', async () => {
+class FakeMutationObserver {
+  constructor(callback) { this.callback = callback }
+  observe() {}
+  disconnect() {}
+}
+
+test('bundled DSH client registers, mounts, and adds a sidebar entry', async () => {
   const document = new FakeDocument()
+  const sidebarColumn = new FakeNode('div')
+  sidebarColumn.setAttribute('data-pane', 'sidebar')
+  const sidebarRoot = new FakeNode('div')
+  const newSession = new FakeNode('BUTTON')
+  newSession.className = 'newSession'
+  sidebarRoot.append(newSession)
+  sidebarColumn.append(sidebarRoot)
+  document.body.append(sidebarColumn)
   let registration
   let effectCleanup
   let fetchCalls = 0
@@ -51,6 +80,7 @@ test('bundled DSH client registers and mounts the standalone board', async () =>
     window: { __ModuleLoader__: { load(value) { registration = value } } },
     document,
     Node: FakeNode,
+    MutationObserver: FakeMutationObserver,
     console,
     URLSearchParams,
     fetch: async () => { fetchCalls++; return { ok: true, status: 200, async json() { return { tasks: [] } } } },
@@ -64,6 +94,7 @@ test('bundled DSH client registers and mounts the standalone board', async () =>
   await Promise.resolve()
   await Promise.resolve()
   assert.ok(document.querySelector('[data-dsh-task-orchestrator-board]'))
+  assert.ok(document.querySelector('[data-dsh-task-orchestrator-entry]'))
   assert.ok(fetchCalls >= 1)
   effectCleanup?.()
 })

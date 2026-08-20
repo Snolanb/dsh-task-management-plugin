@@ -9,10 +9,13 @@ const STATUS_LABELS = {
 }
 
 const CSS = [
-  '.dsh-to-launcher,.dsh-to-panel{font-family:var(--ds-font-family-sans,Inter,system-ui,sans-serif)}',
-  '.dsh-to-launcher{position:fixed;z-index:10050;left:18px;bottom:18px;border:1px solid var(--dsw-alias-border-l2,#3b3e46);border-radius:18px;background:var(--dsw-alias-bg-layer-2,#25272d);color:var(--dsw-alias-label-primary,#f5f6f7);box-shadow:0 4px 18px #0005;cursor:pointer;padding:7px 13px;font:inherit;font-size:12px}',
-  '.dsh-to-launcher:hover{background:var(--dsw-alias-interactive-bg-hover,#343740)}',
-  '.dsh-to-panel{position:fixed;z-index:10040;left:16px;bottom:60px;width:min(1180px,calc(100vw - 32px));height:min(760px,calc(100vh - 92px));display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--dsw-alias-border-l2,#3b3e46);border-radius:14px;background:var(--dsw-alias-bg-layer-1,#1c1e23);color:var(--dsw-alias-label-primary,#f5f6f7);box-shadow:0 12px 44px #0008}',
+  '.dsh-to-panel,.dsh-to-sidebar-entry{font-family:var(--ds-font-family-sans,Inter,system-ui,sans-serif)}',
+  '.dsh-to-sidebar-entry{display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#c2c4ca);cursor:pointer;padding:8px 12px;text-align:left;font:inherit;font-size:12px}',
+  '.dsh-to-sidebar-entry:hover,.dsh-to-sidebar-entry[data-active=true]{background:var(--dsw-alias-interactive-bg-hover,#343740);color:var(--dsw-alias-label-primary,#f5f6f7)}',
+  '.dsh-to-sidebar-icon{display:flex;width:16px;height:16px;align-items:center;justify-content:center;flex:none}',
+  '.dsh-to-sidebar-icon svg{width:14px;height:14px}',
+  '.dsh-to-sidebar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.dsh-to-panel{position:fixed;z-index:10040;left:72px;top:16px;bottom:16px;width:min(1180px,calc(100vw - 88px));height:auto;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--dsw-alias-border-l2,#3b3e46);border-radius:14px;background:var(--dsw-alias-bg-layer-1,#1c1e23);color:var(--dsw-alias-label-primary,#f5f6f7);box-shadow:0 12px 44px #0008}',
   '.dsh-to-hidden{display:none!important}',
   '.dsh-to-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--dsw-alias-border-l2,#3b3e46);background:var(--dsw-alias-bg-layer-2,#24262c)}',
   '.dsh-to-title{font-size:15px;font-weight:650;margin-right:auto}',
@@ -47,7 +50,7 @@ const CSS = [
   '.dsh-to-form{display:flex;flex-direction:column;gap:7px}.dsh-to-form-row{display:flex;gap:6px}.dsh-to-form-row>*{flex:1;min-width:0}',
   '.dsh-to-section{border-top:1px solid var(--dsw-alias-border-l2,#3b3e46);padding-top:7px}',
   '.dsh-to-event{padding:4px 0;border-bottom:1px solid var(--dsw-alias-border-l2,#30323a);font-size:10px}.dsh-to-event strong{color:var(--dsw-alias-label-primary,#f5f6f7)}',
-  '@media(max-width:800px){.dsh-to-detail{flex-basis:270px}.dsh-to-column{flex-basis:150px}}',
+  '@media(max-width:800px){.dsh-to-panel{left:8px;right:8px;width:auto;top:8px;bottom:8px}.dsh-to-detail{flex-basis:270px}.dsh-to-column{flex-basis:150px}}',
 ].join('\n')
 
 function node(tag, props = {}, children = []) {
@@ -73,6 +76,66 @@ function statusSelect(value, onChange) {
   return select
 }
 
+function sidebarRoot() {
+  const column = document.querySelector('[data-pane="sidebar"], [class*="sidebarCol"]')
+  if (column === null) return undefined
+  return column.querySelector('[class*="logoRow"]')?.parentElement ?? column.firstElementChild ?? undefined
+}
+
+function newSessionButton(root) {
+  const nested = root.querySelector('button[class*="newSession"]')
+  if (nested !== null) return nested
+  for (const child of root.children) if (child.tagName === 'BUTTON') return child
+  return undefined
+}
+
+function mountSidebarEntry(onToggle) {
+  if (typeof document === 'undefined' || document.querySelector('[data-dsh-task-orchestrator-entry]') !== null) return () => {}
+  if (typeof MutationObserver === 'undefined' || document.body === null) return () => {}
+
+  const entry = document.createElement('button')
+  entry.type = 'button'
+  entry.setAttribute('data-dsh-task-orchestrator-entry', '')
+  entry.setAttribute('data-dsh-plugin', 'task-orchestrator')
+  entry.setAttribute('data-dsh-part', 'sidebar-entry')
+  entry.className = 'dsh-to-sidebar-entry'
+  entry.setAttribute('aria-label', 'Open task orchestrator board')
+  entry.title = 'Task orchestrator'
+  const icon = document.createElement('span')
+  icon.className = 'dsh-to-sidebar-icon'
+  icon.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M6.5 6.5v7"/></svg>'
+  const label = document.createElement('span')
+  label.className = 'dsh-to-sidebar-label'
+  label.textContent = 'Tasks'
+  entry.append(icon, label)
+  entry.addEventListener('click', onToggle)
+
+  let root
+  let placed = false
+  const place = () => {
+    root ??= sidebarRoot()
+    if (root === undefined) return
+    const button = newSessionButton(root)
+    if (button === undefined) return
+    if (entry.parentElement !== root) {
+      const row = button.closest('[class*="logoRow"]')
+      const base = row?.parentElement === root ? row : button
+      const family = Array.from(root.children).filter(child => child.matches?.('[data-dsh-task-orchestrator-entry], [data-dsh-taskboard-entry], [data-dsh-ssh-entry]'))
+      const anchor = family.length > 0 ? family[0] : base.nextElementSibling
+      root.insertBefore(entry, anchor ?? null)
+    }
+    placed = true
+  }
+  const waitObserver = new MutationObserver(place)
+  const rootObserver = new MutationObserver(() => {
+    if (root === undefined || !root.contains(entry)) { placed = false; place() }
+  })
+  waitObserver.observe(document.body, { childList: true, subtree: true })
+  place()
+  if (placed) rootObserver.observe(root, { childList: true, subtree: true })
+  return () => { waitObserver.disconnect(); rootObserver.disconnect(); entry.remove() }
+}
+
 export class TaskBoardView {
   constructor(client = new TaskOrchestratorClient()) {
     this.client = client
@@ -91,11 +154,11 @@ export class TaskBoardView {
     if (typeof document === 'undefined' || document.querySelector('[data-dsh-task-orchestrator-board]') !== null) return () => {}
     const style = node('style', { 'data-dsh-task-orchestrator-style': '' }, [CSS])
     document.head.append(style)
-    this.launcher = node('button', { type: 'button', className: 'dsh-to-launcher', text: 'Tasks', 'aria-label': 'Open task orchestrator board', onClick: () => this.toggle() })
     this.panel = node('section', { className: 'dsh-to-panel dsh-to-hidden', 'data-dsh-task-orchestrator-board': '', 'aria-label': 'Task orchestrator board' })
     this.buildShell()
-    document.body.append(this.launcher, this.panel)
-    this.disposers.push(() => style.remove(), () => this.launcher.remove(), () => this.panel.remove())
+    document.body.append(this.panel)
+    this.sidebarDisposer = mountSidebarEntry(() => this.toggle())
+    this.disposers.push(() => style.remove(), () => this.sidebarDisposer?.(), () => this.panel.remove())
     void this.refresh()
     return () => { for (const dispose of this.disposers.splice(0)) dispose() }
   }
