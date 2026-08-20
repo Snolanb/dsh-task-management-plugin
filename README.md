@@ -132,9 +132,9 @@ The browser client is exported as ./client and the reusable request wrapper as .
 
 ## Dispatcher seam and limitations
 
-A dispatcher should poll task_list({ ready_to_run: true, worker_profile }) or GET /dispatcher/ready, claim atomically, and treat a false claim result as a normal race. It can poll expired claims for recovery and in-review tasks for Sol review. subscribe is an in-process notification hook; the reliable cross-restart interface remains SQLite plus the query/API endpoints.
+A dispatcher should poll task_list({ ready_to_run: true, worker_profile }) or GET /dispatcher/ready, claim atomically, and treat a false claim result as a normal race. It can poll expired claims for recovery and in-review tasks for Sol review. subscribe is an in-process notification hook; the reliable cross-restart interface remains SQLite plus the query/API endpoints. The detailed worker-spec, profile/model routing, preflight, monitoring, and rollout design is documented in [docs/WORKER-DISPATCH-PLAN.md](docs/WORKER-DISPATCH-PLAN.md).
 
-This version intentionally does not implement GitHub synchronization, worker spawning, chat, scheduling, RBAC, cloud storage, or multi-host coordination. GitHub linkage is storage only. The HTTP surface is loopback-only and has no remote authentication layer.
+This version intentionally does not implement GitHub synchronization, worker spawning, chat, scheduling, RBAC, cloud storage, or multi-host coordination. GitHub linkage is storage only. Worker dispatch remains a planned extension; the HTTP surface is loopback-only and has no remote authentication layer.
 
 ## Verification
 

@@ -5,3 +5,9 @@
 3. Add a thin DSH host plugin that provides a taskOrchestrator capability, registers stable task_* tools, and mounts loopback-only JSON HTTP routes when webServer is present.
 4. Add Node test-runner coverage against temporary databases for CRUD, transitions, claims/leases, dependencies, hierarchy, results, events, persistence, and migration upgrade behavior.
 5. Document installation, configuration, schema, tools/routes, manager/worker flows, dispatcher queries, and the future kanban integration seam; run tests/build checks and commit only this repository.
+
+## Worker dispatch extension
+
+The detailed model/profile routing and worker-spawning design is persisted in [docs/WORKER-DISPATCH-PLAN.md](docs/WORKER-DISPATCH-PLAN.md). It defines the worker-spec registry, Ornith headless profile, MiniMax and Luna session tiers, provider preflight, lease-aware dispatch lifecycle, monitoring, failure policy, security boundaries, tests, and phased rollout.
+
+The current repository intentionally stops at the task control plane: worker spawning is not yet implemented.
