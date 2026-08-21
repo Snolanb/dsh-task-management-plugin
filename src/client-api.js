@@ -54,6 +54,12 @@ export class TaskOrchestratorClient {
     return (await this.request('/tasks' + queryString(query))).tasks ?? []
   }
 
+  async ready(options = {}) {
+    const query = { ...options }
+    if (query.statuses !== undefined && query.status === undefined) { query.status = query.statuses; delete query.statuses }
+    return (await this.request('/dispatcher/ready' + queryString(query))).tasks ?? []
+  }
+
   async get(id) {
     return (await this.request('/tasks/' + encodeURIComponent(id))).task
   }

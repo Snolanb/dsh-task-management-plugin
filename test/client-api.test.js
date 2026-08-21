@@ -72,3 +72,52 @@ test('client delete surfaces structured API errors', async () => {
   const client = new TaskOrchestratorClient(async () => fakeResponse({ error: 'not found', code: 'NOT_FOUND' }, 404))
   await assert.rejects(() => client.delete('missing'), error => error.status === 404 && error.code === 'NOT_FOUND' && error.message === 'not found')
 })
+
+test('client hits GET /dispatcher/ready for ready tasks', async () => {
+  const calls = []
+  const fetcher = async (url, init = {}) => {
+    calls.push({ url, init })
+    return fakeResponse({ tasks: [{ id: 'ready-1' }, { id: 'ready-2' }] })
+  }
+  const client = new TaskOrchestratorClient(fetcher, '/api/task-orchestrator/')
+  const tasks = await client.ready({ worker_profile: 'ornith' })
+  assert.deepEqual(tasks, [{ id: 'ready-1' }, { id: 'ready-2' }])
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, '/api/task-orchestrator/dispatcher/ready?worker_profile=ornith')
+})
+
+test('client encodes ready query options like list does', async () => {
+  const calls = []
+  const fetcher = async (url, init = {}) => {
+    calls.push({ url, init })
+    return fakeResponse({ tasks: [] })
+  }
+  const client = new TaskOrchestratorClient(fetcher, '/api/task-orchestrator')
+  await client.ready({ statuses: ['ready', 'running'], limit: 5 })
+  assert.equal(calls[0].url, '/api/task-orchestrator/dispatcher/ready?limit=5&status=ready%2Crunning')
+})
+
+test('client ready task ids are URL-encoded', async () => {
+  const calls = []
+  const fetcher = async (url, init = {}) => { calls.push({ url, init }); return fakeResponse({ tasks: [] }) }
+  const client = new TaskOrchestratorClient(fetcher, '/api/task-orchestrator/')
+  await client.ready({ worker_profile: 'ornith:25!' })
+  assert.equal(calls[0].url, '/api/task-orchestrator/dispatcher/ready?worker_profile=ornith%3A25%21')
+})
+
+test('client ready returns the returned tasks array', async () => {
+  const fetcher = async () => fakeResponse({ tasks: [{ id: 'a' }, { id: 'b' }] })
+  const client = new TaskOrchestratorClient(fetcher, '/api/task-orchestrator/')
+  assert.deepEqual(await client.ready({}), [{ id: 'a' }, { id: 'b' }])
+})
+
+test('client ready returns an empty array when the endpoint sends empty tasks', async () => {
+  const calls = []
+  const fetcher = async (url, init = {}) => {
+    calls.push({ url, init })
+    return fakeResponse({ tasks: [] })
+  }
+  const client = new TaskOrchestratorClient(fetcher, '/api/task-orchestrator/')
+  assert.deepEqual(await client.ready(), [])
+  assert.equal(calls[0].url, '/api/task-orchestrator/dispatcher/ready')
+})
