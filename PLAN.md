@@ -10,4 +10,4 @@
 
 The detailed model/profile routing and worker-spawning design is persisted in [docs/WORKER-DISPATCH-PLAN.md](docs/WORKER-DISPATCH-PLAN.md). It defines the worker-spec registry, Ornith headless profile, MiniMax and Luna session tiers, provider preflight, lease-aware dispatch lifecycle, monitoring, failure policy, security boundaries, tests, and phased rollout.
 
-The current repository intentionally stops at the task control plane: worker spawning is not yet implemented.
+The repository now includes the worker registry, provider/workspace preflight, headless and session-backed launchers, lease-aware dispatcher, and tests on the feature/worker-dispatch branch. Autonomous scheduling, production profile installation, and durable run records remain future rollout work.

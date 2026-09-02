@@ -8,10 +8,10 @@ The host plugin owns one SQLite database:
 
     dsh agent / Sol manager -> taskOrchestrator service and task_* tools -> SQLite task store
                                                                   |-> future kanban UI
-                                                                  |-> future dispatcher and workers
+                                                                  |-> worker registry, preflight, and dispatcher
                                                                   \-> Sol review
 
-The database is authoritative. Mutations create append-only task events. The implementation uses Node's built-in node:sqlite API and does not call an LLM, GitHub, a worker process, or a network service.
+The database is authoritative. Mutations create append-only task events. The task store itself does not call an LLM or GitHub; the optional dispatcher can launch an allowlisted worker process after provider, profile, and workspace preflight.
 
 ## Installation
 
@@ -37,6 +37,19 @@ The configuration is intentionally small:
     enabled: true
 
 If dbPath is omitted, $DSH_HOME/task-orchestrator/tasks.db is used when DSH_HOME is set; otherwise ~/.dsh/task-orchestrator/tasks.db is used. Parent directories are created with mode 0700. maxAttemptsDefault: 0 means unlimited attempts; a task max_attempts overrides it.
+
+Worker routing is configured with named workerSpecs and approved workspaceRoots. Each spec selects either a headless profile or an agent preset and an explicit provider/model/reasoning tuple. See docs/WORKER-DISPATCH-PLAN.md for the full registry schema and rollout plan.
+
+    workerSpecs:
+      ornith-filemount:
+        mode: headless-profile
+        profile: ornith-filemount-worker
+        provider: ollama
+        model: ornith-1.5:9b
+        reasoningEffort: low
+        workspacePolicy: project-only
+    workspaceRoots:
+      - /Users/you/Project
 
 ## Data model and schema
 
@@ -67,7 +80,7 @@ blocked, failed, and cancelled are available where appropriate. Known obvious in
 
 ## Programmatic service API
 
-The host provides a Cordis capability named taskOrchestrator. It exposes create, get, list, update, delete, claim, release, renewLease, start, complete, fail, block, unblock, requestChanges, addDependency, removeDependency, addChild, listChildren, listDescendants, readyToRun, blockedByDependencies, events, and subscribe. The store property is also available for callers that need the complete object.
+The host provides a Cordis capability named taskOrchestrator. It exposes create, get, list, update, delete, claim, release, renewLease, start, complete, fail, block, unblock, requestChanges, addDependency, removeDependency, addChild, listChildren, listDescendants, readyToRun, blockedByDependencies, events, subscribe, workerSpecs, getWorkerSpec, resolveWorkerSpec, preflightWorker, and createDispatcher. The dispatcher supports headless CLI profiles and session-backed presets; session workers select provider/model/reasoning before prompting and poll durable session history for completion. The store property is also available for callers that need the complete object.
 
 Claims use SQLite BEGIN IMMEDIATE, so two processes cannot both win a claim. A lease records claimed_by, claimed_at, and lease_expires_at. Start, release, renew, complete, fail, and worker blocking require the recorded worker and an unexpired lease; an expired worker must let another worker reclaim the task. A worker should renew before expiry or release explicitly.
 
@@ -96,6 +109,8 @@ When DSH's loopback webServer is present, the host registers the loopback-only p
 - GET /api/task-orchestrator/tasks/:id/children?descendants=true returns hierarchy; POST to the same path creates a child.
 - POST or DELETE /api/task-orchestrator/tasks/:id/dependencies mutates dependencies; POST takes depends_on_task_id.
 - GET /api/task-orchestrator/dispatcher/ready, /expired-claims, and /in-review provide dispatcher-friendly queries.
+- GET /api/task-orchestrator/dispatcher/workers lists configured worker specs.
+- POST /api/task-orchestrator/dispatcher/preflight checks a worker profile, workspace, composition, launcher, provider, model, and reasoning effort without claiming the task.
 
 Example calls:
 
@@ -134,7 +149,7 @@ The browser client is exported as ./client and the reusable request wrapper as .
 
 A dispatcher should poll task_list({ ready_to_run: true, worker_profile }) or GET /dispatcher/ready, claim atomically, and treat a false claim result as a normal race. It can poll expired claims for recovery and in-review tasks for Sol review. subscribe is an in-process notification hook; the reliable cross-restart interface remains SQLite plus the query/API endpoints. The detailed worker-spec, profile/model routing, preflight, monitoring, and rollout design is documented in [docs/WORKER-DISPATCH-PLAN.md](docs/WORKER-DISPATCH-PLAN.md).
 
-This version intentionally does not implement GitHub synchronization, worker spawning, chat, scheduling, RBAC, cloud storage, or multi-host coordination. GitHub linkage is storage only. Worker dispatch remains a planned extension; the HTTP surface is loopback-only and has no remote authentication layer.
+This version intentionally does not implement GitHub synchronization, autonomous scheduling, chat, RBAC, cloud storage, or multi-host coordination. The worker registry, preflight, lease-aware process dispatcher, and session-backed model launcher are implemented; autonomous scheduling and production profile installation remain planned. GitHub linkage is storage only, and the HTTP surface is loopback-only with no remote authentication layer.
 
 ## Verification
 

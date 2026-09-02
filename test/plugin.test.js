@@ -19,7 +19,12 @@ test('registers the task service, DSH tools, and HTTP route', t => {
   }
   t.after(() => { for (const cleanup of cleanups) cleanup(); rmSync(dir, { recursive: true, force: true }) })
 
-  apply(ctx, { dbPath: join(dir, 'tasks.db'), defaultLeaseSeconds: 30 })
+  apply(ctx, {
+    dbPath: join(dir, 'tasks.db'),
+    defaultLeaseSeconds: 30,
+    workspaceRoots: [dir],
+    workerSpecs: { ornith: { mode: 'headless-profile', profile: 'ornith-filemount-worker', provider: 'ollama', model: 'ornith-1.5:9b' } },
+  })
   assert.equal(routes.length, 1)
   assert.equal(routes[0].path, '/api/task-orchestrator')
   assert.ok(registeredTools.length >= 30)
@@ -28,6 +33,8 @@ test('registers the task service, DSH tools, and HTTP route', t => {
   }
   const api = services.get('taskOrchestrator')
   assert.ok(api)
+  assert.equal(api.workerSpecs().length, 1)
+  assert.equal(api.getWorkerSpec('ornith').profile, 'ornith-filemount-worker')
   const task = api.create({ id: 'service-task', title: 'Service task' })
   assert.equal(api.get(task.id).title, 'Service task')
   const project = api.createProject({ id: 'service-project', title: 'Service project' })
