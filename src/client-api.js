@@ -1,5 +1,8 @@
 export const TASK_API_PREFIX = '/api/task-orchestrator'
 
+export const PROJECT_STATUSES = Object.freeze(['planning', 'active', 'blocked', 'completed', 'cancelled'])
+export const TASK_LINK_TYPES = Object.freeze(['enables', 'usually_follows', 'benefits_from', 'related_to'])
+
 export const BOARD_STATUSES = Object.freeze([
   'backlog', 'planning', 'ready', 'claimed', 'running', 'in_review',
   'changes_requested', 'blocked', 'failed', 'done', 'cancelled',
@@ -24,7 +27,9 @@ async function responseJson(response) {
 function queryString(options = {}) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(options)) {
-    if (value === undefined || value === null || value === '') continue
+    if (value === undefined) continue
+    if (value === null) { params.set(key, ''); continue }
+    if (value === '') continue
     if (Array.isArray(value)) params.set(key, value.join(','))
     else params.set(key, String(value))
   }
@@ -99,6 +104,75 @@ export class TaskOrchestratorClient {
 
   async removeDependency(id, dependsOn) {
     return await this.request('/tasks/' + encodeURIComponent(id) + '/dependencies' + queryString({ depends_on_task_id: dependsOn }), { method: 'DELETE' })
+  }
+
+  async addLink(id, linkedTaskId, linkType, options = {}) {
+    return await this.request('/tasks/' + encodeURIComponent(id) + '/links', {
+      method: 'POST', body: JSON.stringify({ linked_task_id: linkedTaskId, link_type: linkType, ...options }), headers: { 'content-type': 'application/json' },
+    })
+  }
+
+  async removeLink(id, linkedTaskId, linkType, options = {}) {
+    return await this.request('/tasks/' + encodeURIComponent(id) + '/links' + queryString({ linked_task_id: linkedTaskId, link_type: linkType, ...options }), { method: 'DELETE' })
+  }
+
+  async listLinks(id, linkType) {
+    const result = await this.request('/tasks/' + encodeURIComponent(id) + '/links' + queryString({ link_type: linkType }))
+    return result.links ?? []
+  }
+
+  async setCriterionResults(id, criterionResults) {
+    return (await this.request('/tasks/' + encodeURIComponent(id) + '/criterion-results', {
+      method: 'PUT', body: JSON.stringify({ criterion_results: criterionResults }), headers: { 'content-type': 'application/json' },
+    })).task
+  }
+
+  async listProjects() {
+    return (await this.request('/projects')).projects ?? []
+  }
+
+  async getProject(id) {
+    return (await this.request('/projects/' + encodeURIComponent(id))).project
+  }
+
+  async createProject(project) {
+    return (await this.request('/projects', { method: 'POST', body: JSON.stringify(project), headers: { 'content-type': 'application/json' } })).project
+  }
+
+  async updateProject(id, patch) {
+    return (await this.request('/projects/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(patch), headers: { 'content-type': 'application/json' } })).project
+  }
+
+  async deleteProject(id) {
+    return await this.request('/projects/' + encodeURIComponent(id), { method: 'DELETE' })
+  }
+
+  async listMilestones(projectId) {
+    return (await this.request('/projects/' + encodeURIComponent(projectId) + '/milestones')).milestones ?? []
+  }
+
+  async createMilestone(projectId, milestone) {
+    return (await this.request('/projects/' + encodeURIComponent(projectId) + '/milestones', { method: 'POST', body: JSON.stringify(milestone), headers: { 'content-type': 'application/json' } })).milestone
+  }
+
+  async getMilestone(id) {
+    return (await this.request('/milestones/' + encodeURIComponent(id))).milestone
+  }
+
+  async updateMilestone(id, patch) {
+    return (await this.request('/milestones/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(patch), headers: { 'content-type': 'application/json' } })).milestone
+  }
+
+  async deleteMilestone(id) {
+    return await this.request('/milestones/' + encodeURIComponent(id), { method: 'DELETE' })
+  }
+
+  async previewPlanImport(markdown, sourceLabel) {
+    return await this.request('/plan-import/preview', { method: 'POST', body: JSON.stringify({ markdown, source_label: sourceLabel }), headers: { 'content-type': 'application/json' } })
+  }
+
+  async applyPlanImport(markdown, options = {}) {
+    return await this.request('/plan-import/apply', { method: 'POST', body: JSON.stringify({ markdown, ...options }), headers: { 'content-type': 'application/json' } })
   }
 }
 

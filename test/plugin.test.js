@@ -22,10 +22,15 @@ test('registers the task service, DSH tools, and HTTP route', t => {
   apply(ctx, { dbPath: join(dir, 'tasks.db'), defaultLeaseSeconds: 30 })
   assert.equal(routes.length, 1)
   assert.equal(routes[0].path, '/api/task-orchestrator')
-  assert.equal(registeredTools.length, 22)
-  assert.ok(registeredTools.some(tool => tool.name === 'task_claim'))
+  assert.ok(registeredTools.length >= 30)
+  for (const name of ['task_create', 'task_claim', 'task_add_dependency', 'task_add_link', 'task_set_criterion_results', 'project_create', 'project_update', 'project_delete', 'milestone_create', 'milestone_update', 'milestone_delete', 'plan_import_preview', 'plan_import_apply']) {
+    assert.ok(registeredTools.some(tool => tool.name === name), `missing tool: ${name}`)
+  }
   const api = services.get('taskOrchestrator')
   assert.ok(api)
   const task = api.create({ id: 'service-task', title: 'Service task' })
   assert.equal(api.get(task.id).title, 'Service task')
+  const project = api.createProject({ id: 'service-project', title: 'Service project' })
+  assert.equal(api.getProject(project.id).id, 'service-project')
+  api.deleteProject(project.id)
 })
